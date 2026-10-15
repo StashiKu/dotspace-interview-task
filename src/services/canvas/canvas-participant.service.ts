@@ -1,5 +1,5 @@
 import type { UUID } from 'crypto';
-import type { Transaction } from 'sequelize';
+import { Transaction } from 'sequelize';
 
 import { ErrorExtended } from '#utilities/exceptions/index.js';
 
@@ -8,6 +8,7 @@ import { RepoCanvasParticipant } from '#repositories/canvas/canvas-participant.r
 
 import { ECanvasParticipantRole } from '#models/index.js';
 import type { IModelCanvasParticipantAttributes } from '#models/index.js';
+import { GLOBAL_DB_MANAGER } from '#scripts/db.script.js';
 
 interface IPropsReceiveMany {
   canvasId: number;
@@ -62,32 +63,37 @@ class ServiceCanvasParticipant {
     optional: IPropsReceiveManyOptional,
     context: { actorId: number },
   ): Promise<ICanvasParticipantDto[]> {
-    await this.assertAccess(search.canvasId, context.actorId);
-
-    const participants = await RepoCanvasParticipant.searchMany(
-      search,
-      optional,
-    );
-
-    const users = await RepoUser.searchManyByPk({
-      ids: participants.map((participant) => participant.userId),
-    });
-
-    const usersById = new Map(users.map((user) => [user.id, user]));
-
-    return participants.flatMap((participant) => {
-      const user = usersById.get(participant.userId);
-
-      if (user === undefined) return [];
-
-      return [
-        {
-          userId: user.id,
-          userUuid: user.uuid,
-          displayName: user.displayName,
-          role: participant.role,
-        },
-      ];
+    return GLOBAL_DB_MANAGER.managedTransaction(async (transaction) => {
+      await this.assertAccess(search.canvasId, context.actorId, undefined, transaction);
+  
+      const participants = await RepoCanvasParticipant.searchMany(
+        search,
+        optional,
+        transaction
+      );
+  
+      const users = await RepoUser.searchManyByPk({
+        ids: participants.map((participant) => participant.userId),
+      }, transaction);
+  
+      const usersById = new Map(users.map((user) => [user.id, user]));
+  
+      return participants.flatMap((participant) => {
+        const user = usersById.get(participant.userId);
+  
+        if (user === undefined) return [];
+  
+        return [
+          {
+            userId: user.id,
+            userUuid: user.uuid,
+            displayName: user.displayName,
+            role: participant.role,
+          },
+        ];
+      });
+    },{
+        isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE,
     });
   }
 }

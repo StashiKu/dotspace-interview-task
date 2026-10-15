@@ -26,8 +26,7 @@ class ServiceConfirmation {
   ): Promise<IModelConfirmationAttributes | null> {
     const confirmation = await RepoConfirmation.find(
       { token, type },
-      transaction,
-      transaction?.LOCK.UPDATE,
+      transaction
     );
 
     if (confirmation !== null) {

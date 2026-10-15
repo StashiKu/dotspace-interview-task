@@ -11,6 +11,7 @@ import type {
 } from '#services/auth/token.service.js';
 
 import { EConfirmationType } from '#models/index.js';
+import { Transaction } from 'sequelize';
 
 interface ITokenPackage {
   accessToken: string;
@@ -105,6 +106,9 @@ class ServiceAuth {
             },
           ];
         },
+        {
+          isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE
+        }
       );
 
     const accessToken = ServiceToken.generateAccessToken(accessPayload);
